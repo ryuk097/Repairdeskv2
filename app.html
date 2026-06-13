@@ -1,0 +1,953 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>RepairDesk</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --bg:       #0F0F0F;
+    --surface:  #1A1A1A;
+    --surface2: #222222;
+    --input:    #2A2A2A;
+    --border:   #333333;
+    --accent:   #00D4AA;
+    --danger:   #FF4D6D;
+    --warn:     #FFB830;
+    --text:     #F0F0F0;
+    --text2:    #999999;
+    --text3:    #555555;
+    --radius:   14px;
+    --radius-sm:8px;
+    --tab-h:    64px;
+    --header-h: 56px;
+  }
+  html, body {
+    height: 100%; width: 100%;
+    background: var(--bg); color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+    font-size: 15px; line-height: 1.5;
+    overflow: hidden; -webkit-font-smoothing: antialiased;
+  }
+  button { cursor: pointer; border: none; background: none; font: inherit; color: inherit; }
+  input, select, textarea { font: inherit; color: inherit; }
+  ::placeholder { color: var(--text3); }
+
+  #app { height: 100dvh; display: flex; flex-direction: column; }
+
+  /* Header */
+  .header {
+    height: var(--header-h); display: flex; align-items: center; justify-content: space-between;
+    padding: 0 16px; background: var(--bg); border-bottom: 1px solid var(--border);
+    flex-shrink: 0; position: relative; z-index: 10;
+  }
+  .header-title { font-size: 17px; font-weight: 700; letter-spacing: -0.3px; display: flex; align-items: center; gap: 8px; }
+  .header-title .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--accent); box-shadow: 0 0 8px var(--accent); }
+  .header-action {
+    width: 36px; height: 36px; border-radius: 50%;
+    background: var(--input); display: flex; align-items: center; justify-content: center;
+    color: var(--text2); font-size: 18px; transition: background .15s;
+  }
+  .header-action:active { background: var(--border); }
+
+  /* Pages */
+  .pages { flex: 1; overflow: hidden; position: relative; }
+  .page {
+    position: absolute; inset: 0; overflow-y: auto; overflow-x: hidden;
+    padding: 16px 16px calc(var(--tab-h) + 16px); display: none;
+    -webkit-overflow-scrolling: touch; overscroll-behavior: contain;
+  }
+  .page.active { display: block; }
+  .page::-webkit-scrollbar { width: 0; }
+
+  /* Tab Bar */
+  .tabbar {
+    height: var(--tab-h); display: flex; align-items: stretch;
+    background: var(--surface); border-top: 1px solid var(--border);
+    flex-shrink: 0; padding-bottom: env(safe-area-inset-bottom);
+  }
+  .tab {
+    flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px;
+    color: var(--text3); font-size: 10px; font-weight: 500; letter-spacing: 0.3px; text-transform: uppercase;
+    transition: color .2s; -webkit-tap-highlight-color: transparent;
+  }
+  .tab .tab-icon { font-size: 20px; line-height: 1; transition: transform .2s; }
+  .tab.active { color: var(--accent); }
+  .tab.active .tab-icon { transform: scale(1.1); }
+
+  /* Search */
+  .search-wrap { position: relative; margin-bottom: 16px; }
+  .search-wrap .search-icon { position: absolute; left: 12px; top: 50%; transform: translateY(-50%); color: var(--text3); font-size: 16px; pointer-events: none; }
+  .search-input {
+    width: 100%; padding: 11px 12px 11px 38px;
+    background: var(--input); border: 1px solid var(--border);
+    border-radius: 12px; color: var(--text); font-size: 15px; outline: none; transition: border-color .2s;
+  }
+  .search-input:focus { border-color: var(--accent); }
+  .search-clear {
+    position: absolute; right: 10px; top: 50%; transform: translateY(-50%);
+    width: 22px; height: 22px; border-radius: 50%; background: var(--border);
+    color: var(--text2); font-size: 13px; display: none; align-items: center; justify-content: center;
+  }
+  .search-clear.visible { display: flex; }
+
+  /* Chips */
+  .chips { display: flex; gap: 8px; margin-bottom: 16px; overflow-x: auto; padding-bottom: 2px; scrollbar-width: none; }
+  .chips::-webkit-scrollbar { display: none; }
+  .chip {
+    padding: 6px 14px; border-radius: 20px; font-size: 13px; font-weight: 500;
+    background: var(--input); border: 1px solid var(--border); color: var(--text2);
+    white-space: nowrap; transition: all .15s; flex-shrink: 0;
+  }
+  .chip.active { background: rgba(0,212,170,.12); border-color: var(--accent); color: var(--accent); }
+
+  /* Card */
+  .card {
+    background: var(--surface); border-radius: var(--radius); border: 1px solid var(--border);
+    margin-bottom: 10px; overflow: hidden; transition: transform .1s;
+    animation: fadeSlideIn .2s ease both;
+  }
+  .card:active { transform: scale(.99); }
+  .card-head { padding: 12px 14px 10px; display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; }
+  .card-id {
+    font-size: 11px; font-family: "SF Mono", "Fira Code", monospace;
+    color: var(--accent); letter-spacing: 0.5px; font-weight: 600;
+    background: rgba(0,212,170,.1); padding: 2px 8px; border-radius: 6px;
+  }
+  .card-date { font-size: 11px; color: var(--text3); margin-top: 2px; }
+  .status-pill {
+    padding: 4px 10px; border-radius: 20px; font-size: 11px; font-weight: 600;
+    letter-spacing: 0.3px; text-transform: uppercase; flex-shrink: 0; transition: background .3s, color .3s;
+  }
+  .status-pill.pending { background: rgba(255,184,48,.12); color: var(--warn); }
+  .status-pill.done    { background: rgba(0,212,170,.12);  color: var(--accent); }
+  .status-pill.return  { background: rgba(255,77,109,.12); color: var(--danger); }
+  .card-body { padding: 0 14px 12px; }
+  .card-model { font-size: 16px; font-weight: 600; margin-bottom: 2px; }
+  .card-shop  { font-size: 13px; color: var(--text2); margin-bottom: 8px; }
+  .card-tags  { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 8px; }
+  .tag { font-size: 11px; padding: 3px 9px; border-radius: 6px; background: var(--input); color: var(--text2); }
+  .tag.missing { background: rgba(255,77,109,.1); color: var(--danger); }
+
+  /* Card photo strip */
+  .card-photos { display: flex; gap: 6px; padding: 0 14px 12px; overflow-x: auto; scrollbar-width: none; }
+  .card-photos::-webkit-scrollbar { display: none; }
+  .card-photo-thumb {
+    width: 64px; height: 64px; border-radius: 8px; object-fit: cover;
+    border: 1px solid var(--border); flex-shrink: 0; cursor: pointer;
+  }
+
+  .card-actions { display: flex; gap: 0; border-top: 1px solid var(--border); }
+  .card-btn {
+    flex: 1; padding: 11px 4px; font-size: 12px; font-weight: 600; letter-spacing: 0.2px; color: var(--text2);
+    transition: background .15s, color .15s; border-right: 1px solid var(--border);
+    display: flex; align-items: center; justify-content: center; gap: 4px;
+  }
+  .card-btn:last-child { border-right: none; }
+  .card-btn:active { background: var(--input); }
+  .card-btn.done-btn:active { color: var(--accent); }
+  .card-btn.ret-btn:active  { color: var(--danger); }
+
+  /* Section label */
+  .section-label {
+    font-size: 11px; font-weight: 700; letter-spacing: 1px; text-transform: uppercase;
+    color: var(--text3); margin: 20px 0 10px;
+  }
+  .section-label:first-child { margin-top: 0; }
+
+  /* Empty */
+  .empty { text-align: center; padding: 60px 20px; color: var(--text3); }
+  .empty-icon { font-size: 40px; margin-bottom: 12px; opacity: .4; }
+  .empty-text { font-size: 14px; }
+
+  /* Form */
+  .form-group { margin-bottom: 14px; }
+  .form-label { font-size: 11px; font-weight: 700; letter-spacing: 0.8px; text-transform: uppercase; color: var(--text3); margin-bottom: 6px; display: block; }
+  .form-input {
+    width: 100%; padding: 12px 14px; background: var(--input); border: 1px solid var(--border);
+    border-radius: var(--radius-sm); color: var(--text); font-size: 15px; outline: none; transition: border-color .2s; resize: none;
+  }
+  .form-input:focus { border-color: var(--accent); }
+  .form-row { display: flex; gap: 10px; }
+  .form-row .form-group { flex: 1; }
+
+  /* ── Photo Picker ──────────────────────── */
+  .photo-picker { margin-bottom: 14px; }
+  .photo-add-btn {
+    width: 100%; padding: 16px; border-radius: var(--radius-sm);
+    background: var(--input); border: 1.5px dashed var(--border);
+    color: var(--text2); font-size: 14px; font-weight: 500;
+    display: flex; align-items: center; justify-content: center; gap: 10px;
+    transition: border-color .2s, color .2s;
+  }
+  .photo-add-btn:active, .photo-add-btn:focus { border-color: var(--accent); color: var(--accent); outline: none; }
+  .photo-add-btn .pa-icon { font-size: 22px; }
+  .photo-previews {
+    display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px;
+  }
+  .photo-preview-wrap {
+    position: relative; width: 80px; height: 80px;
+  }
+  .photo-preview-img {
+    width: 80px; height: 80px; border-radius: 10px; object-fit: cover;
+    border: 1px solid var(--border);
+  }
+  .photo-preview-del {
+    position: absolute; top: -6px; right: -6px;
+    width: 20px; height: 20px; border-radius: 50%;
+    background: var(--danger); color: #fff; font-size: 11px; font-weight: 700;
+    display: flex; align-items: center; justify-content: center;
+    box-shadow: 0 2px 6px rgba(0,0,0,.4);
+  }
+  .photo-count-badge {
+    font-size: 11px; color: var(--accent); font-weight: 600; margin-top: 6px;
+  }
+
+  /* Toggle Group */
+  .toggle-group { display: flex; flex-wrap: wrap; gap: 8px; }
+  .toggle-btn {
+    display: flex; align-items: center; gap: 7px; padding: 9px 14px; border-radius: var(--radius-sm);
+    background: var(--input); border: 1.5px solid var(--border); font-size: 13px; font-weight: 500; color: var(--text2);
+    transition: all .15s; user-select: none; -webkit-tap-highlight-color: transparent;
+  }
+  .toggle-btn .tb-icon { font-size: 15px; }
+  .toggle-btn.active { background: rgba(255,77,109,.1); border-color: var(--danger); color: var(--danger); }
+  .toggle-btn.active .tb-check { opacity: 1; }
+  .tb-check {
+    width: 16px; height: 16px; border-radius: 4px; background: var(--danger);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 10px; opacity: 0; transition: opacity .15s; flex-shrink: 0;
+  }
+
+  /* Type Selector */
+  .type-selector { display: flex; gap: 8px; margin-bottom: 20px; }
+  .type-btn {
+    flex: 1; padding: 12px 8px; border-radius: var(--radius-sm);
+    background: var(--input); border: 1.5px solid var(--border);
+    font-size: 13px; font-weight: 600; color: var(--text2);
+    display: flex; flex-direction: column; align-items: center; gap: 4px; transition: all .15s;
+  }
+  .type-btn .tb-big { font-size: 22px; }
+  .type-btn.active { background: rgba(0,212,170,.08); border-color: var(--accent); color: var(--accent); }
+
+  /* Device Blocks */
+  .device-block {
+    background: var(--surface2); border: 1px solid var(--border);
+    border-radius: var(--radius-sm); padding: 12px 14px; margin-bottom: 10px;
+  }
+  .device-block-title { font-size: 11px; font-weight: 700; letter-spacing: 0.8px; text-transform: uppercase; color: var(--accent); margin-bottom: 10px; }
+
+  /* Submit */
+  .submit-btn {
+    width: 100%; padding: 16px; border-radius: var(--radius);
+    background: var(--accent); color: #000; font-size: 16px; font-weight: 700;
+    letter-spacing: -0.2px; margin-top: 8px; transition: opacity .15s, transform .1s;
+  }
+  .submit-btn:active { opacity: .85; transform: scale(.99); }
+  .submit-btn:disabled { opacity: .4; }
+
+  /* Toast */
+  .toast {
+    position: fixed; bottom: calc(var(--tab-h) + 12px); left: 16px; right: 16px;
+    background: var(--surface); border: 1px solid var(--accent); border-radius: var(--radius);
+    padding: 14px 16px; display: flex; align-items: center; gap: 10px;
+    box-shadow: 0 8px 32px rgba(0,0,0,.5); transform: translateY(20px); opacity: 0;
+    transition: transform .3s cubic-bezier(.34,1.56,.64,1), opacity .3s; pointer-events: none; z-index: 100;
+  }
+  .toast.show { transform: translateY(0); opacity: 1; pointer-events: auto; }
+  .toast-icon { font-size: 20px; flex-shrink: 0; }
+  .toast-msg  { font-size: 14px; font-weight: 500; }
+
+  /* Overlay / Sheet */
+  .overlay {
+    position: fixed; inset: 0; background: rgba(0,0,0,.7); z-index: 200;
+    display: flex; align-items: flex-end; opacity: 0; pointer-events: none; transition: opacity .25s;
+  }
+  .overlay.open { opacity: 1; pointer-events: auto; }
+  .sheet {
+    width: 100%; background: var(--surface); border-radius: 20px 20px 0 0;
+    padding: 20px 20px calc(32px + env(safe-area-inset-bottom));
+    transform: translateY(100%); transition: transform .3s cubic-bezier(.34,1.1,.64,1);
+    border-top: 1px solid var(--border); max-height: 90dvh; overflow-y: auto;
+  }
+  .overlay.open .sheet { transform: translateY(0); }
+  .sheet-handle { width: 36px; height: 4px; border-radius: 2px; background: var(--border); margin: 0 auto 20px; }
+  .sheet-title { font-size: 18px; font-weight: 700; margin-bottom: 4px; }
+  .sheet-sub   { font-size: 13px; color: var(--text2); margin-bottom: 20px; }
+  .pay-options { display: flex; gap: 10px; margin-bottom: 16px; }
+  .pay-btn {
+    flex: 1; padding: 16px; border-radius: var(--radius-sm);
+    background: var(--input); border: 1.5px solid var(--border);
+    font-size: 15px; font-weight: 600; color: var(--text2);
+    display: flex; flex-direction: column; align-items: center; gap: 6px; transition: all .15s;
+  }
+  .pay-btn.active { background: rgba(0,212,170,.1); border-color: var(--accent); color: var(--accent); }
+  .pay-btn .pay-icon { font-size: 26px; }
+
+  /* Photo lightbox */
+  .lightbox {
+    position: fixed; inset: 0; background: rgba(0,0,0,.92); z-index: 500;
+    display: flex; align-items: center; justify-content: center;
+    opacity: 0; pointer-events: none; transition: opacity .2s;
+  }
+  .lightbox.open { opacity: 1; pointer-events: auto; }
+  .lightbox img { max-width: 96vw; max-height: 90dvh; border-radius: 10px; object-fit: contain; }
+  .lightbox-close {
+    position: absolute; top: 16px; right: 16px; width: 36px; height: 36px;
+    border-radius: 50%; background: rgba(255,255,255,.15); color: #fff;
+    font-size: 18px; display: flex; align-items: center; justify-content: center;
+  }
+
+  /* Stats */
+  .stats-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 20px; }
+  .stat-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 16px; }
+  .stat-num  { font-size: 28px; font-weight: 800; letter-spacing: -1px; }
+  .stat-num.accent { color: var(--accent); }
+  .stat-num.warn   { color: var(--warn); }
+  .stat-num.danger { color: var(--danger); }
+  .stat-label { font-size: 12px; color: var(--text3); margin-top: 2px; font-weight: 500; }
+
+  /* Stepper */
+  .stepper { display: flex; align-items: center; background: var(--input); border: 1px solid var(--border); border-radius: var(--radius-sm); overflow: hidden; width: fit-content; }
+  .step-btn { width: 44px; height: 44px; font-size: 20px; color: var(--text2); display: flex; align-items: center; justify-content: center; transition: background .15s; }
+  .step-btn:active { background: var(--border); }
+  .step-val { min-width: 44px; text-align: center; font-size: 17px; font-weight: 700; padding: 0 4px; }
+
+  @keyframes fadeSlideIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+  .divider { height: 1px; background: var(--border); margin: 16px 0; }
+</style>
+</head>
+<body>
+<div id="app">
+
+  <header class="header">
+    <div class="header-title"><span class="dot"></span><span id="page-title">Jobs</span></div>
+    <button class="header-action" id="header-btn">⚙️</button>
+  </header>
+
+  <div class="pages">
+
+    <!-- JOBS -->
+    <div class="page active" id="page-jobs">
+      <div class="search-wrap">
+        <span class="search-icon">🔍</span>
+        <input class="search-input" id="search-input" type="search" placeholder="Search model, shop, job ID…" autocomplete="off" />
+        <button class="search-clear" id="search-clear">✕</button>
+      </div>
+      <div class="chips" id="filter-chips">
+        <button class="chip active" data-filter="all">All</button>
+        <button class="chip" data-filter="pending">⏳ Pending</button>
+        <button class="chip" data-filter="done">✅ Done</button>
+        <button class="chip" data-filter="return">↩️ Return</button>
+        <button class="chip" data-filter="customer">👤 Customer</button>
+        <button class="chip" data-filter="shop">🏪 Shop</button>
+      </div>
+      <div id="jobs-list"></div>
+    </div>
+
+    <!-- NEW JOB -->
+    <div class="page" id="page-new">
+      <div class="type-selector">
+        <button class="type-btn active" data-type="customer"><span class="tb-big">👤</span><span>Customer</span></button>
+        <button class="type-btn" data-type="shop"><span class="tb-big">🏪</span><span>Shop Owner</span></button>
+      </div>
+
+      <!-- Customer Form -->
+      <div id="form-customer">
+        <div class="form-group">
+          <label class="form-label">Customer Name</label>
+          <input class="form-input" id="c-name" type="text" placeholder="Full name" />
+        </div>
+        <div class="form-group">
+          <label class="form-label">Mobile Number</label>
+          <input class="form-input" id="c-mobile" type="tel" placeholder="+91 98765 43210" />
+        </div>
+        <div class="form-group">
+          <label class="form-label">Device Model</label>
+          <input class="form-input" id="c-model" type="text" placeholder="e.g. iPhone 14 Pro" />
+        </div>
+        <div class="form-group">
+          <label class="form-label">IMEI</label>
+          <input class="form-input" id="c-imei" type="text" placeholder="15-digit IMEI" />
+        </div>
+        <div class="form-group">
+          <label class="form-label">Complaint</label>
+          <textarea class="form-input" id="c-complaint" rows="3" placeholder="Describe the issue…"></textarea>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Missing Parts</label>
+          <div class="toggle-group" id="c-missing-group">
+            <button class="toggle-btn" data-part="Camera"><span class="tb-icon">📷</span> Camera <span class="tb-check">✓</span></button>
+            <button class="toggle-btn" data-part="Back Door"><span class="tb-icon">🔲</span> Back Door <span class="tb-check">✓</span></button>
+            <button class="toggle-btn" data-part="Battery"><span class="tb-icon">🔋</span> Battery <span class="tb-check">✓</span></button>
+            <button class="toggle-btn" data-part="Display"><span class="tb-icon">🖥️</span> Display <span class="tb-check">✓</span></button>
+            <button class="toggle-btn" data-part="SIM Card"><span class="tb-icon">📶</span> SIM Card <span class="tb-check">✓</span></button>
+          </div>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Estimated Price (₹)</label>
+          <input class="form-input" id="c-price" type="number" placeholder="0" />
+        </div>
+
+        <!-- Customer Photo Picker -->
+        <div class="photo-picker">
+          <label class="form-label">Photos <span style="color:var(--text3);font-weight:400;text-transform:none;letter-spacing:0">(optional)</span></label>
+          <button class="photo-add-btn" id="c-photo-btn" type="button">
+            <span class="pa-icon">📸</span>
+            <span>Tap to add photos</span>
+          </button>
+          <input type="file" id="c-photo-input" accept="image/*" multiple capture="environment" style="display:none" />
+          <div class="photo-previews" id="c-photo-previews"></div>
+        </div>
+
+        <button class="submit-btn" id="submit-customer">Save Customer Job</button>
+      </div>
+
+      <!-- Shop Owner Form -->
+      <div id="form-shop" style="display:none">
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label">Shop Number</label>
+            <input class="form-input" id="s-shopnum" type="text" placeholder="Shop #" />
+          </div>
+          <div class="form-group">
+            <label class="form-label">Owner Name</label>
+            <input class="form-input" id="s-name" type="text" placeholder="Name" />
+          </div>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Mobile</label>
+          <input class="form-input" id="s-mobile" type="tel" placeholder="+91 98765 43210" />
+        </div>
+        <div class="form-group">
+          <label class="form-label">Quantity</label>
+          <div class="stepper">
+            <button class="step-btn" id="qty-minus">−</button>
+            <span class="step-val" id="qty-val">1</span>
+            <button class="step-btn" id="qty-plus">+</button>
+          </div>
+        </div>
+        <div id="device-blocks"></div>
+        <div class="form-group">
+          <label class="form-label">Missing Parts</label>
+          <div class="toggle-group" id="s-missing-group">
+            <button class="toggle-btn" data-part="Camera"><span class="tb-icon">📷</span> Camera <span class="tb-check">✓</span></button>
+            <button class="toggle-btn" data-part="Back Door"><span class="tb-icon">🔲</span> Back Door <span class="tb-check">✓</span></button>
+            <button class="toggle-btn" data-part="Battery"><span class="tb-icon">🔋</span> Battery <span class="tb-check">✓</span></button>
+            <button class="toggle-btn" data-part="Display"><span class="tb-icon">🖥️</span> Display <span class="tb-check">✓</span></button>
+            <button class="toggle-btn" data-part="SIM Card"><span class="tb-icon">📶</span> SIM Card <span class="tb-check">✓</span></button>
+          </div>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Estimated Price (₹)</label>
+          <input class="form-input" id="s-price" type="number" placeholder="0" />
+        </div>
+
+        <!-- Shop Photo Picker -->
+        <div class="photo-picker">
+          <label class="form-label">Photos <span style="color:var(--text3);font-weight:400;text-transform:none;letter-spacing:0">(optional)</span></label>
+          <button class="photo-add-btn" id="s-photo-btn" type="button">
+            <span class="pa-icon">📸</span>
+            <span>Tap to add photos</span>
+          </button>
+          <input type="file" id="s-photo-input" accept="image/*" multiple capture="environment" style="display:none" />
+          <div class="photo-previews" id="s-photo-previews"></div>
+        </div>
+
+        <button class="submit-btn" id="submit-shop">Save Shop Job</button>
+      </div>
+    </div>
+
+    <!-- STATS -->
+    <div class="page" id="page-stats">
+      <div class="stats-grid" id="stats-grid"></div>
+      <div class="section-label">Recent Activity</div>
+      <div id="stats-recent"></div>
+    </div>
+
+  </div>
+
+  <nav class="tabbar">
+    <button class="tab active" data-page="jobs"><span class="tab-icon">📋</span><span>Jobs</span></button>
+    <button class="tab" data-page="new"><span class="tab-icon">➕</span><span>New</span></button>
+    <button class="tab" data-page="stats"><span class="tab-icon">📊</span><span>Stats</span></button>
+  </nav>
+</div>
+
+<!-- Done Sheet -->
+<div class="overlay" id="done-overlay">
+  <div class="sheet">
+    <div class="sheet-handle"></div>
+    <div class="sheet-title">Mark as Done</div>
+    <div class="sheet-sub" id="done-job-label">Job · Device</div>
+    <div class="form-group">
+      <label class="form-label">Paid Amount (₹)</label>
+      <input class="form-input" id="done-amount" type="number" placeholder="0" />
+    </div>
+    <div class="pay-options">
+      <button class="pay-btn active" data-method="GPay"><span class="pay-icon">📲</span><span>GPay</span></button>
+      <button class="pay-btn" data-method="Cash"><span class="pay-icon">💵</span><span>Cash</span></button>
+    </div>
+    <button class="submit-btn" id="confirm-done">Confirm Done</button>
+    <button style="width:100%;padding:14px;text-align:center;color:var(--text3);font-size:14px;margin-top:8px;" id="cancel-done">Cancel</button>
+  </div>
+</div>
+
+<!-- Photo Lightbox -->
+<div class="lightbox" id="lightbox">
+  <img id="lightbox-img" src="" alt="Photo" />
+  <button class="lightbox-close" id="lightbox-close">✕</button>
+</div>
+
+<!-- Toast -->
+<div class="toast" id="toast">
+  <span class="toast-icon" id="toast-icon">✅</span>
+  <span class="toast-msg"  id="toast-msg">Saved</span>
+</div>
+
+<script>
+// ── Telegram WebApp init ──────────────────────
+const tg = window.Telegram?.WebApp;
+if (tg) { tg.expand(); tg.setHeaderColor?.('#0F0F0F'); tg.setBackgroundColor?.('#0F0F0F'); }
+
+// ── Storage ───────────────────────────────────
+const STORAGE_KEY = 'repairdesk_jobs_v3';
+function loadJobs() { try { return JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]'); } catch { return []; } }
+function saveJobs(j) { localStorage.setItem(STORAGE_KEY, JSON.stringify(j)); }
+
+let jobs             = loadJobs();
+let filter           = 'all';
+let searchQuery      = '';
+let shopQty          = 1;
+let activeDoneJobId  = null;
+let selectedPayMethod = 'GPay';
+
+// Photo state: arrays of base64 data URLs
+let cPhotos = [];
+let sPhotos = [];
+
+// ── Helpers ───────────────────────────────────
+function uid(p) { return p + '-' + Math.random().toString(36).slice(2,10).toUpperCase(); }
+function now()  {
+  return new Date().toLocaleString('en-IN', {
+    day:'2-digit', month:'short', year:'numeric', hour:'2-digit', minute:'2-digit', hour12:true
+  });
+}
+function sendToBot(data) { if (tg?.sendData) tg.sendData(JSON.stringify(data)); }
+function showToast(msg, icon='✅', ms=2500) {
+  document.getElementById('toast-icon').textContent = icon;
+  document.getElementById('toast-msg').textContent  = msg;
+  const t = document.getElementById('toast');
+  t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), ms);
+}
+
+// ── Photo helpers ─────────────────────────────
+function fileToBase64(file) {
+  return new Promise(res => {
+    const r = new FileReader();
+    r.onload = e => res(e.target.result);
+    r.readAsDataURL(file);
+  });
+}
+
+function renderPhotoPreviews(containerId, photos, onDelete) {
+  const el = document.getElementById(containerId);
+  if (!photos.length) { el.innerHTML = ''; return; }
+  el.innerHTML = photos.map((src, i) => `
+    <div class="photo-preview-wrap">
+      <img class="photo-preview-img" src="${src}" data-src="${src}" />
+      <button class="photo-preview-del" data-idx="${i}">✕</button>
+    </div>
+  `).join('');
+  // Delete buttons
+  el.querySelectorAll('.photo-preview-del').forEach(btn => {
+    btn.addEventListener('click', () => onDelete(parseInt(btn.dataset.idx)));
+  });
+  // Lightbox on tap
+  el.querySelectorAll('.photo-preview-img').forEach(img => {
+    img.addEventListener('click', () => openLightbox(img.dataset.src));
+  });
+}
+
+function setupPhotoPicker(btnId, inputId, previewsId, photosArr, onUpdate) {
+  const btn   = document.getElementById(btnId);
+  const input = document.getElementById(inputId);
+
+  btn.addEventListener('click', () => input.click());
+  input.addEventListener('change', async () => {
+    if (!input.files.length) return;
+    for (const file of input.files) {
+      if (photosArr.length >= 5) { showToast('Max 5 photos', '⚠️'); break; }
+      // Compress: draw to canvas at max 1200px
+      const b64 = await compressImage(file, 1200, 0.82);
+      photosArr.push(b64);
+    }
+    input.value = '';
+    onUpdate();
+  });
+}
+
+function compressImage(file, maxPx, quality) {
+  return new Promise(res => {
+    const img = new Image();
+    const url = URL.createObjectURL(file);
+    img.onload = () => {
+      URL.revokeObjectURL(url);
+      let w = img.width, h = img.height;
+      if (w > maxPx || h > maxPx) {
+        if (w > h) { h = Math.round(h * maxPx / w); w = maxPx; }
+        else       { w = Math.round(w * maxPx / h); h = maxPx; }
+      }
+      const c = document.createElement('canvas');
+      c.width = w; c.height = h;
+      c.getContext('2d').drawImage(img, 0, 0, w, h);
+      res(c.toDataURL('image/jpeg', quality));
+    };
+    img.src = url;
+  });
+}
+
+// Lightbox
+function openLightbox(src) {
+  document.getElementById('lightbox-img').src = src;
+  document.getElementById('lightbox').classList.add('open');
+}
+document.getElementById('lightbox-close').addEventListener('click', () => {
+  document.getElementById('lightbox').classList.remove('open');
+  document.getElementById('lightbox-img').src = '';
+});
+document.getElementById('lightbox').addEventListener('click', e => {
+  if (e.target === document.getElementById('lightbox')) {
+    document.getElementById('lightbox').classList.remove('open');
+  }
+});
+
+// Setup customer photos
+setupPhotoPicker('c-photo-btn', 'c-photo-input', 'c-photo-previews', cPhotos, () => {
+  renderPhotoPreviews('c-photo-previews', cPhotos, idx => {
+    cPhotos.splice(idx, 1);
+    renderPhotoPreviews('c-photo-previews', cPhotos, arguments.callee);
+  });
+  updatePhotoBtnLabel('c-photo-btn', cPhotos.length);
+});
+// Setup shop photos
+setupPhotoPicker('s-photo-btn', 's-photo-input', 's-photo-previews', sPhotos, () => {
+  renderPhotoPreviews('s-photo-previews', sPhotos, idx => {
+    sPhotos.splice(idx, 1);
+    renderPhotoPreviews('s-photo-previews', sPhotos, arguments.callee);
+  });
+  updatePhotoBtnLabel('s-photo-btn', sPhotos.length);
+});
+
+function updatePhotoBtnLabel(btnId, count) {
+  const btn = document.getElementById(btnId);
+  btn.innerHTML = count === 0
+    ? `<span class="pa-icon">📸</span><span>Tap to add photos</span>`
+    : `<span class="pa-icon">📸</span><span>${count} photo${count>1?'s':''} added · tap to add more</span>`;
+}
+
+// ── Navigation ────────────────────────────────
+const pageTitles = { jobs:'Jobs', new:'New Job', stats:'Overview' };
+document.querySelectorAll('.tab').forEach(tab => {
+  tab.addEventListener('click', () => {
+    const p = tab.dataset.page;
+    document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+    document.querySelectorAll('.page').forEach(pg => pg.classList.remove('active'));
+    tab.classList.add('active');
+    document.getElementById('page-' + p).classList.add('active');
+    document.getElementById('page-title').textContent = pageTitles[p];
+    if (p === 'jobs')  renderJobs();
+    if (p === 'stats') renderStats();
+  });
+});
+
+// ── Search ────────────────────────────────────
+const searchInput = document.getElementById('search-input');
+const searchClear = document.getElementById('search-clear');
+searchInput.addEventListener('input', () => {
+  searchQuery = searchInput.value.trim().toLowerCase();
+  searchClear.classList.toggle('visible', searchQuery.length > 0);
+  renderJobs();
+});
+searchClear.addEventListener('click', () => {
+  searchInput.value = ''; searchQuery = ''; searchClear.classList.remove('visible');
+  searchInput.focus(); renderJobs();
+});
+
+// ── Filter chips ──────────────────────────────
+document.getElementById('filter-chips').addEventListener('click', e => {
+  const chip = e.target.closest('.chip'); if (!chip) return;
+  document.querySelectorAll('.chip').forEach(c => c.classList.remove('active'));
+  chip.classList.add('active'); filter = chip.dataset.filter; renderJobs();
+});
+
+// ── Jobs Render ───────────────────────────────
+function matchesSearch(j, q) {
+  if (!q) return true;
+  return [j.id, j.model, j.name, j.shopNum, j.complaint].some(v => (v||'').toLowerCase().includes(q));
+}
+function matchesFilter(j, f) {
+  if (f === 'all')      return true;
+  if (f === 'customer') return j.type === 'customer';
+  if (f === 'shop')     return j.type === 'shop';
+  return j.status === f;
+}
+
+function renderJobs() {
+  const list    = document.getElementById('jobs-list');
+  const visible = jobs.filter(j => matchesFilter(j,filter) && matchesSearch(j,searchQuery))
+                      .sort((a,b) => b._ts - a._ts);
+  if (!visible.length) {
+    list.innerHTML = `<div class="empty"><div class="empty-icon">${searchQuery?'🔍':'📭'}</div><div class="empty-text">${searchQuery?'No results for "'+searchInput.value+'"':'No jobs here yet'}</div></div>`;
+    return;
+  }
+  const groups = {};
+  visible.forEach(j => { const d=j.date?.split(',')[0]||'Unknown'; if(!groups[d])groups[d]=[]; groups[d].push(j); });
+  let html = '';
+  Object.entries(groups).forEach(([d, gj]) => {
+    const today = new Date().toLocaleDateString('en-IN',{day:'2-digit',month:'short',year:'numeric'});
+    html += `<div class="section-label">${d===today?'Today':d}</div>`;
+    gj.forEach(j => { html += jobCardHTML(j); });
+  });
+  list.innerHTML = html;
+  bindCardButtons(list);
+}
+
+function statusPillHTML(s) {
+  const m = {pending:'⏳ Pending', done:'✅ Done', return:'↩️ Return'};
+  return `<span class="status-pill ${s}">${m[s]||s}</span>`;
+}
+
+function jobCardHTML(j) {
+  const tagsHTML = [
+    j.type==='shop' ? `<span class="tag">🏪 ${j.shopNum||''}</span>` : '',
+    j.deviceNo      ? `<span class="tag">Device ${j.deviceNo}/${j.totalQty}</span>` : '',
+    ...(j.missingParts||[]).map(p=>`<span class="tag missing">⚠️ ${p}</span>`),
+    j.price         ? `<span class="tag">₹${j.price}</span>` : '',
+  ].filter(Boolean).join('');
+
+  const photos = j.photos || [];
+  const photosHTML = photos.length
+    ? `<div class="card-photos">${photos.map(src=>`<img class="card-photo-thumb" src="${src}" data-src="${src}" />`).join('')}</div>`
+    : '';
+
+  return `<div class="card">
+    <div class="card-head">
+      <div><div class="card-id">${j.id}</div><div class="card-date">${j.date||''}</div></div>
+      ${statusPillHTML(j.status)}
+    </div>
+    <div class="card-body">
+      <div class="card-model">${j.model||'—'}</div>
+      <div class="card-shop">${j.name||''}${j.mobile?' · '+j.mobile:''}</div>
+      ${tagsHTML ? `<div class="card-tags">${tagsHTML}</div>` : ''}
+    </div>
+    ${photosHTML}
+    <div class="card-actions">
+      <button class="card-btn done-btn" data-id="${j.id}" data-action="done">✅ Done</button>
+      <button class="card-btn"          data-id="${j.id}" data-action="pending">⏳ Pending</button>
+      <button class="card-btn ret-btn"  data-id="${j.id}" data-action="return">↩️ Return</button>
+    </div>
+  </div>`;
+}
+
+function bindCardButtons(container) {
+  container.querySelectorAll('.card-btn').forEach(btn => {
+    btn.addEventListener('click', e => { e.stopPropagation(); handleStatusAction(btn.dataset.id, btn.dataset.action); });
+  });
+  container.querySelectorAll('.card-photo-thumb').forEach(img => {
+    img.addEventListener('click', () => openLightbox(img.dataset.src));
+  });
+}
+
+function handleStatusAction(id, action) {
+  if (action === 'done') {
+    activeDoneJobId = id;
+    const j = jobs.find(j => j.id === id);
+    if (j) document.getElementById('done-job-label').textContent = `${j.id} · ${j.model||''}`;
+    document.getElementById('done-amount').value = '';
+    document.getElementById('done-overlay').classList.add('open');
+    setTimeout(() => document.getElementById('done-amount').focus(), 350);
+  } else {
+    const j = jobs.find(j => j.id === id); if (!j) return;
+    j.status = action; j.updatedAt = now();
+    j.updatedBy = tg?.initDataUnsafe?.user?.first_name || 'Staff';
+    saveJobs(jobs); renderJobs();
+    showToast(`Marked as ${action}`, action==='return'?'↩️':'⏳');
+    sendToBot({ action:'status', id, status:action, updatedBy:j.updatedBy, updatedAt:j.updatedAt });
+  }
+}
+
+// ── Done Sheet ────────────────────────────────
+document.getElementById('done-overlay').addEventListener('click', e => {
+  if (e.target === document.getElementById('done-overlay'))
+    document.getElementById('done-overlay').classList.remove('open');
+});
+document.getElementById('cancel-done').addEventListener('click', () =>
+  document.getElementById('done-overlay').classList.remove('open'));
+
+document.querySelectorAll('.pay-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.pay-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active'); selectedPayMethod = btn.dataset.method;
+  });
+});
+
+document.getElementById('confirm-done').addEventListener('click', () => {
+  const amount = document.getElementById('done-amount').value.trim();
+  if (!amount) { showToast('Enter paid amount', '⚠️'); return; }
+  const j = jobs.find(j => j.id === activeDoneJobId); if (!j) return;
+  j.status = 'done'; j.paidAmount = amount; j.paymentMethod = selectedPayMethod;
+  j.updatedAt = now(); j.updatedBy = tg?.initDataUnsafe?.user?.first_name || 'Staff';
+  saveJobs(jobs);
+  document.getElementById('done-overlay').classList.remove('open');
+  renderJobs();
+  showToast(`₹${amount} via ${selectedPayMethod}`, '✅');
+  sendToBot({ action:'done', id:j.id, paidAmount:amount, paymentMethod:selectedPayMethod, updatedBy:j.updatedBy });
+});
+
+// ── Type Selector ─────────────────────────────
+document.querySelectorAll('.type-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.type-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    const t = btn.dataset.type;
+    document.getElementById('form-customer').style.display = t==='customer' ? '' : 'none';
+    document.getElementById('form-shop').style.display     = t==='shop'     ? '' : 'none';
+  });
+});
+
+// ── Missing Parts Toggles ─────────────────────
+document.querySelectorAll('.toggle-group').forEach(group => {
+  group.addEventListener('click', e => {
+    const btn = e.target.closest('.toggle-btn'); if (!btn) return;
+    btn.classList.toggle('active');
+  });
+});
+function getSelectedParts(groupId) {
+  return [...document.querySelectorAll(`#${groupId} .toggle-btn.active`)].map(b => b.dataset.part);
+}
+
+// ── Qty Stepper ───────────────────────────────
+function renderDeviceBlocks(qty) {
+  const c = document.getElementById('device-blocks');
+  c.innerHTML = '';
+  for (let i = 1; i <= qty; i++) {
+    c.innerHTML += `<div class="device-block">
+      <div class="device-block-title">Device ${i} of ${qty}</div>
+      <div class="form-group">
+        <label class="form-label">Model</label>
+        <input class="form-input s-dev-model" data-idx="${i}" type="text" placeholder="e.g. Samsung A54" />
+      </div>
+      <div class="form-group">
+        <label class="form-label">Complaint</label>
+        <textarea class="form-input s-dev-complaint" data-idx="${i}" rows="2" placeholder="Describe the issue…"></textarea>
+      </div>
+    </div>`;
+  }
+}
+renderDeviceBlocks(1);
+document.getElementById('qty-minus').addEventListener('click', () => {
+  if (shopQty <= 1) return; shopQty--; document.getElementById('qty-val').textContent = shopQty; renderDeviceBlocks(shopQty);
+});
+document.getElementById('qty-plus').addEventListener('click', () => {
+  if (shopQty >= 10) return; shopQty++; document.getElementById('qty-val').textContent = shopQty; renderDeviceBlocks(shopQty);
+});
+
+// ── Submit Customer ───────────────────────────
+document.getElementById('submit-customer').addEventListener('click', () => {
+  const name      = document.getElementById('c-name').value.trim();
+  const mobile    = document.getElementById('c-mobile').value.trim();
+  const model     = document.getElementById('c-model').value.trim();
+  const imei      = document.getElementById('c-imei').value.trim();
+  const complaint = document.getElementById('c-complaint').value.trim();
+  const price     = document.getElementById('c-price').value.trim();
+  const missing   = getSelectedParts('c-missing-group');
+  if (!name || !model) { showToast('Name and model are required', '⚠️'); return; }
+
+  const job = {
+    id: uid('C'), type:'customer', _ts: Date.now(),
+    date: now(), name, mobile, model, imei, complaint,
+    missingParts: missing, price, status:'pending',
+    photos: [...cPhotos],
+    paidAmount:'', paymentMethod:'', updatedBy:'', updatedAt:''
+  };
+  jobs.push(job); saveJobs(jobs);
+  // Send without photos to bot (too large), photos stay local
+  sendToBot({ action:'new_customer', job: {...job, photos: job.photos.length + ' photo(s)'} });
+  showToast('Customer job saved!');
+
+  ['c-name','c-mobile','c-model','c-imei','c-complaint','c-price'].forEach(id => document.getElementById(id).value = '');
+  document.querySelectorAll('#c-missing-group .toggle-btn').forEach(b => b.classList.remove('active'));
+  cPhotos.length = 0;
+  renderPhotoPreviews('c-photo-previews', cPhotos, () => {});
+  updatePhotoBtnLabel('c-photo-btn', 0);
+  document.querySelector('[data-page="jobs"]').click();
+});
+
+// ── Submit Shop ───────────────────────────────
+document.getElementById('submit-shop').addEventListener('click', () => {
+  const shopNum = document.getElementById('s-shopnum').value.trim();
+  const name    = document.getElementById('s-name').value.trim();
+  const mobile  = document.getElementById('s-mobile').value.trim();
+  const price   = document.getElementById('s-price').value.trim();
+  const missing = getSelectedParts('s-missing-group');
+  if (!shopNum || !name) { showToast('Shop number and name required', '⚠️'); return; }
+
+  const models     = [...document.querySelectorAll('.s-dev-model')].map(i => i.value.trim());
+  const complaints = [...document.querySelectorAll('.s-dev-complaint')].map(i => i.value.trim());
+  if (models.some(m => !m)) { showToast('Enter model for all devices', '⚠️'); return; }
+
+  const baseId  = uid('S');
+  const ts      = Date.now();
+  const dateStr = now();
+
+  for (let i = 0; i < shopQty; i++) {
+    jobs.push({
+      id: `${baseId}-${i+1}`, type:'shop', _ts: ts+i,
+      date: dateStr, shopNum, name, mobile,
+      model: models[i]||'', complaint: complaints[i]||'',
+      deviceNo: i+1, totalQty: shopQty,
+      missingParts: missing, price, status:'pending',
+      photos: [...sPhotos],   // same photo set for all devices in batch
+      paidAmount:'', paymentMethod:'', updatedBy:'', updatedAt:''
+    });
+  }
+  saveJobs(jobs);
+  sendToBot({ action:'new_shop', shopNum, name, mobile, qty:shopQty, models, complaints, missing, price, photoCount: sPhotos.length });
+  showToast(`${shopQty} device(s) saved!`);
+
+  ['s-shopnum','s-name','s-mobile','s-price'].forEach(id => document.getElementById(id).value = '');
+  document.querySelectorAll('#s-missing-group .toggle-btn').forEach(b => b.classList.remove('active'));
+  sPhotos.length = 0;
+  renderPhotoPreviews('s-photo-previews', sPhotos, () => {});
+  updatePhotoBtnLabel('s-photo-btn', 0);
+  shopQty = 1; document.getElementById('qty-val').textContent = 1; renderDeviceBlocks(1);
+  document.querySelector('[data-page="jobs"]').click();
+});
+
+// ── Stats ─────────────────────────────────────
+function renderStats() {
+  const total  = jobs.length;
+  const pend   = jobs.filter(j=>j.status==='pending').length;
+  const done   = jobs.filter(j=>j.status==='done').length;
+  const ret    = jobs.filter(j=>j.status==='return').length;
+  const earned = jobs.filter(j=>j.status==='done'&&j.paidAmount).reduce((s,j)=>s+Number(j.paidAmount||0),0);
+  document.getElementById('stats-grid').innerHTML = `
+    <div class="stat-card"><div class="stat-num">${total}</div><div class="stat-label">Total Jobs</div></div>
+    <div class="stat-card"><div class="stat-num warn">${pend}</div><div class="stat-label">Pending</div></div>
+    <div class="stat-card"><div class="stat-num accent">${done}</div><div class="stat-label">Completed</div></div>
+    <div class="stat-card"><div class="stat-num danger">${ret}</div><div class="stat-label">Returned</div></div>
+    <div class="stat-card" style="grid-column:1/-1"><div class="stat-num accent">₹${earned.toLocaleString('en-IN')}</div><div class="stat-label">Total Collected</div></div>`;
+  const recent = [...jobs].sort((a,b)=>b._ts-a._ts).slice(0,5);
+  const el = document.getElementById('stats-recent');
+  el.innerHTML = recent.length ? recent.map(j=>jobCardHTML(j)).join('') : `<div class="empty"><div class="empty-icon">📭</div><div class="empty-text">No jobs yet</div></div>`;
+  bindCardButtons(el);
+}
+
+// ── Init ──────────────────────────────────────
+renderJobs();
+</script>
+</body>
+</html>
